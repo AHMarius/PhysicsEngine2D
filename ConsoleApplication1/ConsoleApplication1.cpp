@@ -43,14 +43,13 @@ bool ObjectIntersection(GameObject ObjA, GameObject ObjB)
 bool ObjectInteractionCircles(GameObject ObjA, GameObject ObjB)
 {
     int R = ObjA.Transform.Size.x + ObjB.Transform.Size.x;
-    R *= R;
-    return R < pow(ObjA.Transform.Position.x + ObjB.Transform.Position.x, 2) + pow(ObjA.Transform.Position.y + ObjB.Transform.Position.y, 2);
+    return pow(R,2) >= pow(ObjA.Transform.Position.x - ObjB.Transform.Position.x, 2) + pow(ObjA.Transform.Position.y - ObjB.Transform.Position.y, 2);
 }
 int main() {
     //Declarations
     GameObject Obj[10];
         //First Object
-    Obj[0].Transform.Position = Vector2{50, 151};
+    Obj[0].Transform.Position = Vector2{50, 140};
     Obj[0].Transform.Size = Vector2{50,50};
     Obj[0].Type = 0;
         //First Object
@@ -80,7 +79,7 @@ int main() {
         bool InteractionCheck = false;
         if (Obj[0].Type == 0)
         {
-            ObjectInteractionCircles(Obj[0], Obj[1]);
+            InteractionCheck = ObjectInteractionCircles(Obj[0], Obj[1]);
         }
         else {
             InteractionCheck = ObjectIntersection(Obj[0], Obj[1]);
