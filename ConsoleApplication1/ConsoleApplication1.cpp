@@ -6,8 +6,10 @@ const bool DEBUG_MODE = true;
 const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGHT = 600;
 const int OBJECT_NUMBER = 2;
+const int FPS_LIMIT = 60;
+const int VECTOR_LENGHT = 60;
 const float LINE_THICKNESS = 2.0f;
-
+const float GIZMOS_SIZE = 2.0f;
 //Objects
 struct GameObject {
     unsigned short Type; //0-circle, 1 rectangle
@@ -16,6 +18,12 @@ struct GameObject {
         Vector2 Size;
         Vector3 Rotation;
     }Transform;
+    //Temporary
+    struct {
+        float ObjectSpeed;
+        Vector2 Velocity;
+        Vector2 EndPoint;
+    }RigidBody;
     //Axis Aligned Bounding Boxes
     struct {
         Vector2 min;
@@ -42,20 +50,39 @@ bool ObjectIntersection(GameObject ObjA, GameObject ObjB)
 }
 bool ObjectInteractionCircles(GameObject ObjA, GameObject ObjB)
 {
-    int R = ObjA.Transform.Size.x + ObjB.Transform.Size.x;
+    float R = ObjA.Transform.Size.x + ObjB.Transform.Size.x;
     return pow(R,2) >= pow(ObjA.Transform.Position.x - ObjB.Transform.Position.x, 2) + pow(ObjA.Transform.Position.y - ObjB.Transform.Position.y, 2);
+}
+void CalculateVelocity(GameObject &ObjA)
+{
+    float a = ObjA.RigidBody.EndPoint.x, x = ObjA.Transform.Position.x;
+    float b = ObjA.RigidBody.EndPoint.y, y = ObjA.Transform.Position.y;
+    // Vector Normalization
+    /*float vectorLenght = pow((a - x), 2) + pow((b - x), 2);
+    ObjA.RigidBody.Velocity = Vector2{ (float)pow((a-x),2)/vectorLenght
+        ,(float)pow((b-y),2)/vectorLenght };
+    */
+    ObjA.RigidBody.Velocity = Vector2{ (float)((a - x>0)?1:-1),(float)((b - y > 0) ? 1 : -1) };
+
 }
 int main() {
     //Declarations
+        //Variables
+    bool InteractionCheck = false;
+        //Objects
     GameObject Obj[10];
         //First Object
     Obj[0].Transform.Position = Vector2{50, 140};
     Obj[0].Transform.Size = Vector2{50,50};
-    Obj[0].Type = 0;
+    Obj[0].Type = 1;
+    Obj[0].RigidBody.ObjectSpeed = 1;
+    Obj[0].RigidBody.EndPoint = Vector2{550,640 };
         //First Object
     Obj[1].Transform.Position = Vector2{ 200, 50 };
     Obj[1].Transform.Size = Vector2{ 50,50 };
-    Obj[1].Type = 0;
+    Obj[1].Type = 1;
+    Obj[1].RigidBody.EndPoint = Vector2{ 200,550 };
+    Obj[1].RigidBody.ObjectSpeed = 2;
     //Debugging
     for (int counter = 0; counter < OBJECT_NUMBER && DEBUG_MODE; counter++)
     {
@@ -63,20 +90,38 @@ int main() {
     }
     //Raylib Loop
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Raylib Program");
-    SetTargetFPS(60);
+    SetTargetFPS(FPS_LIMIT);
     while (!WindowShouldClose()) {
         //Update
-        Obj[0].Transform.Position.x += 1;
-
-
-        //AABB Calculations
+              
+        //AABB && Velocity Calculations loop
         for (int counter = 0; counter < OBJECT_NUMBER; counter++)
         {
             if (Obj[counter].Type != 0)
                 Obj[counter].toAABB();
+            if ((Obj[counter].RigidBody.EndPoint.x != -1 && Obj[counter].RigidBody.EndPoint.y != -1)) {
+                if (!InteractionCheck &&
+                    (Obj[counter].RigidBody.EndPoint.x != Obj[counter].Transform.Position.x || Obj[counter].RigidBody.EndPoint.y != Obj[counter].Transform.Position.y)
+                   )
+                {
+                    CalculateVelocity(Obj[counter]);
+                }
+                else {
+                    Obj[counter].RigidBody.Velocity = Vector2{ 0,0 };
+                    Obj[counter].RigidBody.EndPoint = Vector2{ -1,-1 };
+                }
+            }
+        }
+        //Position Change Loop
+        for (int counter = 0; counter < OBJECT_NUMBER; counter++)
+        {
+            Obj[counter].Transform.Position = Vector2{
+                Obj[counter].Transform.Position.x + Obj[counter].RigidBody.Velocity.x * Obj[counter].RigidBody.ObjectSpeed,
+                Obj[counter].Transform.Position.y + Obj[counter].RigidBody.Velocity.y * Obj[counter].RigidBody.ObjectSpeed
+            };
         }
         //Intersection Check
-        bool InteractionCheck = false;
+       
         if (Obj[0].Type == 0)
         {
             InteractionCheck = ObjectInteractionCircles(Obj[0], Obj[1]);
@@ -85,7 +130,7 @@ int main() {
             InteractionCheck = ObjectIntersection(Obj[0], Obj[1]);
         }
         BeginDrawing();
-        ClearBackground(LIGHTGRAY); 
+        ClearBackground(DARKGRAY); 
         //Draw Objects
         for (int counter = 0; counter < OBJECT_NUMBER; counter++)
         {
@@ -108,6 +153,10 @@ int main() {
             else {
                 DrawLineEx(varObj.AABB.min, varObj.AABB.max, LINE_THICKNESS, RED);
                 DrawRectangleLines(varObj.Transform.Position.x, varObj.Transform.Position.y, varObj.Transform.Size.x, varObj.Transform.Size.y, RED);
+            }
+            if (varObj.RigidBody.EndPoint.x!=-1) {
+                DrawCircleV(varObj.RigidBody.EndPoint, GIZMOS_SIZE, YELLOW);
+                DrawLineV(varObj.Transform.Position, varObj.RigidBody.EndPoint, YELLOW);
             }
         }
         EndDrawing();
