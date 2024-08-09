@@ -191,16 +191,24 @@ int main() {
 
 		// Draw
 		BeginDrawing();
-		ClearBackground(DARKGRAY);
+		ClearBackground(BLACK);
 
 		// Draw Objects
 		for (int counter = 0; counter < OBJECT_NUMBER; counter++) {
 			if (Obj[counter].Type == 0) {
-				DrawCircleV(Obj[counter].Transform.Position, Obj[counter].Transform.Size.x, (!Obj[counter].Collided) ? GREEN : RED);
+				DrawCircleV(Obj[counter].Transform.Position, Obj[counter].Transform.Size.x, (!Obj[counter].Collided) ? DARKGREEN : RED);
 			}
 			else {
-				DrawRectangleV(Obj[counter].Transform.Position, Obj[counter].Transform.Size, (!Obj[counter].Collided) ? GREEN : RED);
+				DrawRectangleV(Obj[counter].Transform.Position, Obj[counter].Transform.Size, (!Obj[counter].Collided) ? DARKGREEN : RED);
 			}
+
+			// Draw velocity vector
+			Vector2 velocityEndPoint = Vector2{
+				Obj[counter].Transform.Position.x + Obj[counter].RigidBody.Velocity.x * VECTOR_LENGHT,
+				Obj[counter].Transform.Position.y + Obj[counter].RigidBody.Velocity.y * VECTOR_LENGHT
+			};
+
+			DrawLineEx(Obj[counter].Transform.Position, velocityEndPoint, LINE_THICKNESS, BLUE);
 		}
 
 		// Draw Hitboxes
