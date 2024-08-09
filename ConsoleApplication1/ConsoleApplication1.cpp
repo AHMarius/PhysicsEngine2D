@@ -70,54 +70,66 @@ void CalculateVelocity(GameObject& ObjA) {
 	// Set the velocity based on the normalized direction
 	ObjA.RigidBody.Velocity = Vector2{ direction.x, direction.y };
 }
-void CreateGameObject()
-{
-	//later
-}
+
 void ResolveCollision(GameObject& ObjA, GameObject& ObjB)
 {
 	Vector2 relativeVelocity = Vector2{ ObjB.RigidBody.Velocity.x - ObjA.RigidBody.Velocity.x, ObjB.RigidBody.Velocity.y - ObjA.RigidBody.Velocity.y };
+
 	float x = ObjB.Transform.Position.x - ObjA.Transform.Position.x;
 	float y = ObjB.Transform.Position.y - ObjA.Transform.Position.y;
 	float length = std::sqrt(x * x + y * y);
+
+	// Normalize the collision normal
 	Vector2 normalVector = Vector2{ x / length, y / length };
+
+	// Calculate velocity along the normal
 	float velocityAlongNormal = relativeVelocity.x * normalVector.x + relativeVelocity.y * normalVector.y;
-	//if the velocity along the normal is 0 then do not resolve as the velocities are separating
+
+	// If velocity is separating, no need to resolve
 	if (velocityAlongNormal > 0)
 		return;
-	//Restitution 
-	float e = (ObjA.RigidBody.Restitution <= ObjB.RigidBody.Restitution) ? ObjA.RigidBody.Restitution : ObjB.RigidBody.Restitution;
-	//Impulse
+
+	// Restitution (elasticity)
+	float e = std::min(ObjA.RigidBody.Restitution, ObjB.RigidBody.Restitution);
+
+	// Calculate impulse scalar
 	float j = -(1 + e) * velocityAlongNormal;
-	j /= 1 / ObjA.RigidBody.Mass + 1 / ObjB.RigidBody.Mass;
-	//Applying the impulse
+	j /= (1 / ObjA.RigidBody.Mass) + (1 / ObjB.RigidBody.Mass);
+
+	// Apply impulse to both objects in the opposite direction
 	Vector2 impulse = Vector2{ j * normalVector.x, j * normalVector.y };
-	ObjA.RigidBody.Velocity = Vector2{ ObjA.RigidBody.Velocity.x - (1 / ObjA.RigidBody.Mass) * impulse.x, ObjA.RigidBody.Velocity.y - (1 / ObjA.RigidBody.Mass) * impulse.y };
-	ObjB.RigidBody.Velocity = Vector2{ ObjB.RigidBody.Velocity.x + (1 / ObjB.RigidBody.Mass) * impulse.x, ObjB.RigidBody.Velocity.y - (1 / ObjB.RigidBody.Mass) * impulse.y };
+
+	ObjA.RigidBody.Velocity = Vector2{ ObjA.RigidBody.Velocity.x - (impulse.x / ObjA.RigidBody.Mass),
+									   ObjA.RigidBody.Velocity.y - (impulse.y / ObjA.RigidBody.Mass) };
+
+	ObjB.RigidBody.Velocity = Vector2{ ObjB.RigidBody.Velocity.x + (impulse.x / ObjB.RigidBody.Mass),
+									   ObjB.RigidBody.Velocity.y + (impulse.y / ObjB.RigidBody.Mass) };
+}
+
+void CreateGameObject(int& OBJECT_NUMBER, GameObject ObjList[], Vector2 Position = Vector2{ 0,0 }, Vector3 Rotation = Vector3{ 0,0,0 }, Vector2 Size = Vector2{ 1,1 }, unsigned short Type = 0, float ObjectSpeed = 1, Vector2 EndPoint = Vector2{ -1,-1 }/*repeat the position otherwise it won't appear*/, float Mass = 1, float Restitution = 0.5f)
+{
+	ObjList[OBJECT_NUMBER].Transform.Position = Position;
+	ObjList[OBJECT_NUMBER].Transform.Rotation = Rotation;
+	if (Type == 0)
+		ObjList[OBJECT_NUMBER].Transform.Size = Vector2{ Size.x,Size.x };
+	else
+		ObjList[OBJECT_NUMBER].Transform.Size = Size;
+	ObjList[OBJECT_NUMBER].Type = Type;
+	ObjList[OBJECT_NUMBER].RigidBody.ObjectSpeed = ObjectSpeed;
+	ObjList[OBJECT_NUMBER].RigidBody.EndPoint = EndPoint;
+	ObjList[OBJECT_NUMBER].RigidBody.Mass = Mass;
+	ObjList[OBJECT_NUMBER].RigidBody.Restitution = Restitution;
+	OBJECT_NUMBER++;
 }
 int main() {
 	//Declarations
 		//Variables
 	bool InteractionCheck = false;
-	int OBJECT_NUMBER = 2;
+	int OBJECT_NUMBER = 0;
 	//Objects
 	GameObject Obj[10];
-	//First Object
-	Obj[0].Transform.Position = Vector2{ 50, 50 };
-	Obj[0].Transform.Size = Vector2{ 25,25 };
-	Obj[0].Type = 0;
-	Obj[0].RigidBody.ObjectSpeed = 2;
-	Obj[0].RigidBody.EndPoint = Vector2{ 550,590 };
-	Obj[0].RigidBody.Mass = 1;
-	Obj[0].RigidBody.Restitution = 0.1f;
-	//First Object
-	Obj[1].Transform.Position = Vector2{ 100, 180 };
-	Obj[1].Transform.Size = Vector2{ 25,25 };
-	Obj[1].Type = 0;
-	Obj[1].RigidBody.EndPoint = Vector2{ 400,400 };
-	Obj[1].RigidBody.ObjectSpeed = 2;
-	Obj[1].RigidBody.Mass = 1;
-	Obj[1].RigidBody.Restitution = 0.5f;
+	CreateGameObject(OBJECT_NUMBER, Obj, Vector2{ 50, 50 }, Vector3{ 0,0,0 }, Vector2{ 25,25 }, 0, 2, Vector2{ 500, 500 }, 1, 0.5f);
+	CreateGameObject(OBJECT_NUMBER, Obj, Vector2{ 100,180 }, Vector3{ 0,0,0 }, Vector2{ 25,25 }, 0, 2, Vector2{ 400,400 }, 1, 0.5f);
 	//Debugging
 	for (int counter = 0; counter < OBJECT_NUMBER && DEBUG_MODE; counter++)
 	{
