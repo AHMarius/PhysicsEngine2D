@@ -3,7 +3,7 @@
 #include <raylib.h>
 
 // Constants
-const bool DEBUG_MODE = true;
+const bool DEBUG_MODE = false;
 const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGHT = 600;
 
@@ -12,7 +12,7 @@ const int VECTOR_LENGHT = 60;
 const float LINE_THICKNESS = 2.0f;
 const float GIZMOS_SIZE = 2.0f;
 
-// Objects
+// Structs
 struct GameObject {
 	unsigned short Type; // 0-circle, 1-rectangle
 	bool Collided;
@@ -129,17 +129,55 @@ int main() {
 
 	// Objects
 	GameObject Obj[10];
-	CreateGameObject(OBJECT_NUMBER, Obj, Vector2{ 50, 50 }, Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 2, Vector2{ 500, 500 }, 1, 0.5f);
-	CreateGameObject(OBJECT_NUMBER, Obj, Vector2{ 100, 180 }, Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 2, Vector2{ 400, 400 }, 1, 0.5f);
+	//CreateGameObject(OBJECT_NUMBER, Obj, Vector2{ 50, 50 }, Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 2, Vector2{ 500, 500 }, 1, 0.5f);
+	//CreateGameObject(OBJECT_NUMBER, Obj, Vector2{ 100, 180 }, Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 2, Vector2{ 400, 400 }, 1, 0.5f);
 
+	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Raylib Program");
+	SetTargetFPS(FPS_LIMIT);
 	// Debugging
 	for (int counter = 0; counter < OBJECT_NUMBER && DEBUG_MODE; counter++) {
 		DebugAABB(Obj[counter]);
 	}
-
+	Vector2 StartingPoints[10], EndPoints[10];
+	int StartPointNumber = 0, EndPointNumber = 0;
+	while (IsKeyUp(KEY_SPACE))
+	{
+		if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+		{
+			StartingPoints[StartPointNumber] = GetMousePosition();
+			StartPointNumber++;
+		}
+		else if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))
+		{
+			EndPoints[EndPointNumber] = GetMousePosition();
+			EndPointNumber++;
+		}
+		BeginDrawing();
+		ClearBackground(BLACK);
+		for (int i = 0; i < StartPointNumber; i++)
+		{
+			DrawCircleV(StartingPoints[i], GIZMOS_SIZE, RED);
+		}
+		for (int i = 0; i < EndPointNumber; i++)
+		{
+			DrawCircleV(EndPoints[i], GIZMOS_SIZE, YELLOW);
+		}
+		for (int i = 0; i < std::min(EndPointNumber, StartPointNumber); i++)
+		{
+			DrawLineV(StartingPoints[i], EndPoints[i], YELLOW);
+		}
+		EndDrawing();
+	}
+	EndDrawing();
+	for (int i = 0; i < EndPointNumber; i++)
+	{
+		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 3, EndPoints[i], 1, 0.5f);
+	}
+	for (int i = EndPointNumber; i < StartPointNumber; i++)
+	{
+		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 3, StartingPoints[i], 1, 0.5f);
+	}
 	// Raylib Loop
-	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Raylib Program");
-	SetTargetFPS(FPS_LIMIT);
 	while (!WindowShouldClose()) {
 		// Update
 		// Reset the collision check
