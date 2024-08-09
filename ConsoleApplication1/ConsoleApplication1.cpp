@@ -138,8 +138,8 @@ int main() {
 	for (int counter = 0; counter < OBJECT_NUMBER && DEBUG_MODE; counter++) {
 		DebugAABB(Obj[counter]);
 	}
-	Vector2 StartingPoints[10], EndPoints[10];
-	int StartPointNumber = 0, EndPointNumber = 0;
+	Vector2 StartingPoints[10], EndPoints[10], BasicPoints[10];
+	int StartPointNumber = 0, EndPointNumber = 0, BasicPointNumber = 0;
 	while (IsKeyUp(KEY_SPACE))
 	{
 		if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
@@ -152,6 +152,12 @@ int main() {
 			EndPoints[EndPointNumber] = GetMousePosition();
 			EndPointNumber++;
 		}
+		else if (IsKeyPressed(KEY_D))
+		{
+			BasicPoints[BasicPointNumber] = GetMousePosition();
+			BasicPointNumber++;
+		}
+
 		BeginDrawing();
 		ClearBackground(BLACK);
 		for (int i = 0; i < StartPointNumber; i++)
@@ -161,6 +167,10 @@ int main() {
 		for (int i = 0; i < EndPointNumber; i++)
 		{
 			DrawCircleV(EndPoints[i], GIZMOS_SIZE, YELLOW);
+		}
+		for (int i = 0; i < BasicPointNumber; i++)
+		{
+			DrawCircleV(BasicPoints[i], GIZMOS_SIZE, DARKPURPLE);
 		}
 		for (int i = 0; i < std::min(EndPointNumber, StartPointNumber); i++)
 		{
@@ -177,10 +187,14 @@ int main() {
 	{
 		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 3, StartingPoints[i], 1, 0.5f);
 	}
+	for (int i = 0; i < BasicPointNumber; i++)
+	{
+		CreateGameObject(OBJECT_NUMBER, Obj, BasicPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 3, BasicPoints[i], 1, 0.5f);
+	}
 	// Raylib Loop
 	while (!WindowShouldClose()) {
 		// Update
-		// Reset the collision check
+// Reset the collision check
 		for (int counter = 0; counter < OBJECT_NUMBER; counter++) {
 			Obj[counter].Collided = false;
 		}
@@ -188,7 +202,7 @@ int main() {
 		// Intersection Check
 		for (int i = 0; i < OBJECT_NUMBER; i++) {
 			for (int j = i + 1; j < OBJECT_NUMBER; j++) {
-				if (Obj[i].Type == 0) {
+				if (Obj[i].Type == 0 && Obj[j].Type == 0) {
 					ObjectInteractionCircles(Obj[i], Obj[j]);
 				}
 				else {
@@ -197,15 +211,44 @@ int main() {
 			}
 		}
 
+
 		// AABB & Velocity Calculations loop
 		for (int counter = 0; counter < OBJECT_NUMBER; counter++) {
-			if (Obj[counter].Type != 0)
+			// Ensure AABB is updated for non-circle objects
+			if (Obj[counter].Type != 0) {
 				Obj[counter].toAABB();
+			}
+
+			// Reset the collision status
+			Obj[counter].Collided = false;
+
+			// Check for collisions and resolve them
+			for (int counter2 = 0; counter2 < OBJECT_NUMBER; counter2++) {
+				if (counter != counter2) {
+					// Handle collisions between different object types
+					if (Obj[counter].Type == 0 && Obj[counter2].Type == 0) {
+						// Both are circles
+						ObjectInteractionCircles(Obj[counter], Obj[counter2]);
+					}
+					else {
+						// At least one is a rectangle
+						ObjectInteraction(Obj[counter], Obj[counter2]);
+					}
+
+					// Resolve collisions if there is any
+					if (Obj[counter].Collided || Obj[counter2].Collided) {
+						ResolveCollision(Obj[counter], Obj[counter2]);
+					}
+				}
+			}
+
+			// If the object has collided, reset its EndPoint
 			if (Obj[counter].Collided) {
-				ResolveCollision(Obj[0], Obj[1]);
 				Obj[counter].RigidBody.EndPoint = Vector2{ -1, -1 };
 			}
-			else if (Obj[counter].RigidBody.EndPoint.x != -1 && Obj[counter].RigidBody.EndPoint.y != -1) {
+
+			// Handle movement towards EndPoint if not collided
+			if (Obj[counter].RigidBody.EndPoint.x != -1 && Obj[counter].RigidBody.EndPoint.y != -1) {
 				float distanceToEndPoint = sqrt(pow(Obj[counter].RigidBody.EndPoint.x - Obj[counter].Transform.Position.x, 2) +
 					pow(Obj[counter].RigidBody.EndPoint.y - Obj[counter].Transform.Position.y, 2));
 
@@ -218,6 +261,7 @@ int main() {
 				}
 			}
 		}
+
 
 		// Position Change Loop
 		for (int counter = 0; counter < OBJECT_NUMBER; counter++) {
