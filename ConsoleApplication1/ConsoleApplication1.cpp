@@ -23,6 +23,8 @@ struct GameObject {
 		float ObjectSpeed;
 		Vector2 Velocity;
 		Vector2 EndPoint;
+		float Restitution;
+		float Mass;
 	}RigidBody;
 	//Axis Aligned Bounding Boxes
 	struct {
@@ -68,10 +70,30 @@ void CalculateVelocity(GameObject& ObjA) {
 	// Set the velocity based on the normalized direction
 	ObjA.RigidBody.Velocity = Vector2{ direction.x, direction.y };
 }
-
 void CreateGameObject()
 {
-
+	//later
+}
+void ResolveCollision(GameObject& ObjA, GameObject& ObjB)
+{
+	Vector2 relativeVelocity = Vector2{ ObjB.RigidBody.Velocity.x - ObjA.RigidBody.Velocity.x, ObjB.RigidBody.Velocity.y - ObjA.RigidBody.Velocity.y };
+	float x = ObjB.Transform.Position.x - ObjA.Transform.Position.x;
+	float y = ObjB.Transform.Position.y - ObjA.Transform.Position.y;
+	float length = std::sqrt(x * x + y * y);
+	Vector2 normalVector = Vector2{ x / length, y / length };
+	float velocityAlongNormal = relativeVelocity.x * normalVector.x + relativeVelocity.y * normalVector.y;
+	//if the velocity along the normal is 0 then do not resolve as the velocities are separating
+	if (velocityAlongNormal > 0)
+		return;
+	//Restitution 
+	float e = (ObjA.RigidBody.Restitution <= ObjB.RigidBody.Restitution) ? ObjA.RigidBody.Restitution : ObjB.RigidBody.Restitution;
+	//Impulse
+	float j = -(1 + e) * velocityAlongNormal;
+	j /= 1 / ObjA.RigidBody.Mass + 1 / ObjB.RigidBody.Mass;
+	//Applying the impulse
+	Vector2 impulse = Vector2{ j * normalVector.x, j * normalVector.y };
+	ObjA.RigidBody.Velocity = Vector2{ ObjA.RigidBody.Velocity.x - (1 / ObjA.RigidBody.Mass) * impulse.x, ObjA.RigidBody.Velocity.y - (1 / ObjA.RigidBody.Mass) * impulse.y };
+	ObjB.RigidBody.Velocity = Vector2{ ObjB.RigidBody.Velocity.x + (1 / ObjB.RigidBody.Mass) * impulse.x, ObjB.RigidBody.Velocity.y - (1 / ObjB.RigidBody.Mass) * impulse.y };
 }
 int main() {
 	//Declarations
@@ -81,17 +103,21 @@ int main() {
 	//Objects
 	GameObject Obj[10];
 	//First Object
-	Obj[0].Transform.Position = Vector2{ 50, 140 };
+	Obj[0].Transform.Position = Vector2{ 50, 50 };
 	Obj[0].Transform.Size = Vector2{ 25,25 };
 	Obj[0].Type = 0;
 	Obj[0].RigidBody.ObjectSpeed = 2;
-	Obj[0].RigidBody.EndPoint = Vector2{ 550,20 };
+	Obj[0].RigidBody.EndPoint = Vector2{ 550,590 };
+	Obj[0].RigidBody.Mass = 1;
+	Obj[0].RigidBody.Restitution = 0.1f;
 	//First Object
-	Obj[1].Transform.Position = Vector2{ 200, 50 };
+	Obj[1].Transform.Position = Vector2{ 100, 180 };
 	Obj[1].Transform.Size = Vector2{ 25,25 };
 	Obj[1].Type = 0;
-	Obj[1].RigidBody.EndPoint = Vector2{ 360,550 };
+	Obj[1].RigidBody.EndPoint = Vector2{ 400,400 };
 	Obj[1].RigidBody.ObjectSpeed = 2;
+	Obj[1].RigidBody.Mass = 1;
+	Obj[1].RigidBody.Restitution = 0.5f;
 	//Debugging
 	for (int counter = 0; counter < OBJECT_NUMBER && DEBUG_MODE; counter++)
 	{
@@ -108,7 +134,12 @@ int main() {
 		{
 			if (Obj[counter].Type != 0)
 				Obj[counter].toAABB();
-			if (Obj[counter].RigidBody.EndPoint.x != -1 && Obj[counter].RigidBody.EndPoint.y != -1) {
+			if (InteractionCheck)
+			{
+				ResolveCollision(Obj[0], Obj[1]);
+				Obj[counter].RigidBody.EndPoint = Vector2{ -1, -1 };
+			}
+			else if (Obj[counter].RigidBody.EndPoint.x != -1 && Obj[counter].RigidBody.EndPoint.y != -1) {
 				float distanceToEndPoint = sqrt(pow(Obj[counter].RigidBody.EndPoint.x - Obj[counter].Transform.Position.x, 2) +
 					pow(Obj[counter].RigidBody.EndPoint.y - Obj[counter].Transform.Position.y, 2));
 
