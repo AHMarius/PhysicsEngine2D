@@ -70,7 +70,7 @@ Vector2 normalize(const Vector2& v)
 }
 // Debugging function
 void DebugAABB(PhysicsObject Obj) {
-	std::cout << Obj.AABB.min.x << " " << Obj.AABB.min.y << " " << Obj.AABB.max.x << " " << Obj.AABB.max.y;
+	std::cout <<"AABB min:\n x=" << Obj.AABB.min.x << "\n y=" << Obj.AABB.min.y << "\nAABB max \n x= " << Obj.AABB.max.x << "\n y= " << Obj.AABB.max.y;
 }
 
 void ObjectInteraction(Manifold* M) {
@@ -157,55 +157,76 @@ void ObjectInteractionCircles(Manifold* M) {
 	A->Collided = B->Collided = true;
 }
 void ObjectInteractionMixed(Manifold* M) {
-	PhysicsObject* A = M->A; // Circle
-	PhysicsObject* B = M->B; // Rectangle
-
-	// Vector from the circle's center to the rectangle's center
-	Vector2 n = Vector2{ A->Transform.Position.x - B->Transform.Position.x, A->Transform.Position.y - B->Transform.Position.y };
-
-	// Clamp point to the rectangle's bounds
-	Vector2 closestPoint = {
-		clamp(A->Transform.Position.x, B->AABB.min.x, B->AABB.max.x),
-		clamp(A->Transform.Position.y, B->AABB.min.y, B->AABB.max.y)
+	PhysicsObject* Circle = M->B; // Circle
+	PhysicsObject* Rectangle = M->A; // Rectangle
+	//Vector from the Rectangle to the Circle
+	Vector2 n = Vector2{
+		Circle->Transform.Position.x - (Rectangle->AABB.max.x + Rectangle->AABB.min.x) / 2,
+		Circle->Transform.Position.y - (Rectangle->AABB.max.y + Rectangle->AABB.min.y) / 2
 	};
-
-	// Calculate the vector from the circle's center to the closest point on the rectangle
-	Vector2 closestPointToCircle = Vector2{
-		closestPoint.x - A->Transform.Position.x,
-		closestPoint.y - A->Transform.Position.y
+	//Closest point on the rectangle to the center
+	Vector2 closest = n;
+	//Calculate half extents for each axis
+	Vector2 halfExtent = Vector2{
+		(float)(Rectangle->AABB.max.x - Rectangle->AABB.min.x) / 2,
+		(float)(Rectangle->AABB.max.y - Rectangle->AABB.min.y) / 2
 	};
-
-	// Check for collision
-	float distanceSquared = closestPointToCircle.x * closestPointToCircle.x + closestPointToCircle.y * closestPointToCircle.y;
-	float radiusSquared = A->Transform.Size.x * A->Transform.Size.x;
-
-	if (distanceSquared > radiusSquared) {
-		A->Collided = B->Collided = false;
+	//Clamping the points to the edge of the rectangle
+	closest = Vector2{
+		(float)clamp(closest.x,halfExtent.x,-halfExtent.x),
+		(float)clamp(closest.y,halfExtent.y,-halfExtent.y)
+	};
+	bool inside = false;
+	// Circle is inside the AABB, so we need to clamp the circle's center 
+	// to the closest edge
+	if (n.x == closest.x && n.y == closest.y)
+	{
+		inside = true;
+		//Find the closest axis
+		if (std::abs(n.x) > std::abs(n.y))
+		{
+			//Clamp to closest extent
+			if (closest.x > 0)
+				closest.x = halfExtent.x;
+			else
+				closest.x = -halfExtent.x;
+		}
+		//y axis is shorter
+		else {
+			//Clamp to closest extent
+			if (closest.y > 0)
+				closest.y = halfExtent.y;
+			else
+				closest.y = -halfExtent.y;
+		}
+	}
+	Vector2 normal = Vector2{
+		n.x - closest.x,
+		n.y - closest.y
+	};
+	float d = normal.x * normal.x + normal.y * normal.y;
+	float r = Circle->Transform.Size.x;
+	// Early out of the radius is shorter than distance to closest point and
+	// Circle not inside the AABB
+	if (d > r * r && !inside)
+	{
+		Circle->Collided = Rectangle->Collided = false;
 		return;
 	}
-
-	// Collision detected
-	A->Collided = B->Collided = true;
-
-	// Calculate the collision normal and penetration depth
-	float distance = sqrt(distanceSquared);
-	if (distance != 0) {
-		M->normal = Vector2{ closestPointToCircle.x / distance, closestPointToCircle.y / distance };
-		M->penetration = A->Transform.Size.x - distance;
+	d = sqrt(d);
+	// Collision normal needs to be flipped to point outside if circle was 
+	 // inside the AABB
+	if (inside) {
+		M->normal = Vector2{-n.x,-n.y};
+		M->penetration = r - d;
 	}
 	else {
-		M->normal = Vector2{ 1, 0 }; // Default normal
-		M->penetration = A->Transform.Size.x; // Max penetration
+		M->normal = n;
+		M->penetration = r - d;
 	}
+	Circle->Collided = Rectangle->Collided = true;
+	return;
 }
-
-
-
-
-
-
-
-
 void CalculateVelocity(PhysicsObject& ObjA) {
 	float a = ObjA.RigidBody.EndPoint.x, x = ObjA.Transform.Position.x;
 	float b = ObjA.RigidBody.EndPoint.y, y = ObjA.Transform.Position.y;
@@ -233,6 +254,7 @@ void PositionalCorrection(Manifold* M)
 	ObjB->Transform.Position.y += ObjB->RigidBody.InverseMass * correction.y;
 }
 void ResolveCollision(Manifold* M) {
+	
 	PhysicsObject* ObjA = M->A;
 	PhysicsObject* ObjB = M->B;
 
@@ -258,7 +280,9 @@ void ResolveCollision(Manifold* M) {
 		ObjB->RigidBody.Velocity.x + impulse.x * ObjB->RigidBody.InverseMass,
 		ObjB->RigidBody.Velocity.y + impulse.y * ObjB->RigidBody.InverseMass
 	};
-
+	std::cout << "Normal: (" << M->normal.x << ", " << M->normal.y << ")" << std::endl;
+	std::cout << "Penetration: " << M->penetration << std::endl;
+	std::cout << "Impulse: (" << impulse.x << ", " << impulse.y << ")" << std::endl;
 	// Positional correction
 	PositionalCorrection(M);
 }
@@ -358,7 +382,7 @@ int main() {
 		}
 
 		// Intersection Check
-		for (int i = 0; i < OBJECT_NUMBER; i++) {
+		/*for (int i = 0; i < OBJECT_NUMBER; i++) {
 			for (int j = i + 1; j < OBJECT_NUMBER; j++) {
 				Manifold m = { &Obj[i], &Obj[j] };
 				if (Obj[i].Type == 0 && Obj[j].Type == 0) {
@@ -370,7 +394,7 @@ int main() {
 				}
 			}
 		}
-
+		*/
 
 
 		for (int i = 0; i < OBJECT_NUMBER; i++) {
@@ -379,6 +403,8 @@ int main() {
 
 			// Check for collisions and resolve them
 			for (int j = 0; j < OBJECT_NUMBER; j++) {
+				std::cout << "Circle Position: (" << Obj[i].Transform.Position.x << ", " << Obj[i].Transform.Position.y << ")" << std::endl;
+				std::cout << "Rectangle Position: (" << Obj[j].Transform.Position.x << ", " << Obj[j].Transform.Position.y << ")" << std::endl;
 				if (i == j) continue; // Skip checking an object with itself
 				Manifold m;
 				if (Obj[i].Type == 0 && Obj[j].Type == 0) {
@@ -387,9 +413,10 @@ int main() {
 				}
 				else if (Obj[i].Type != Obj[j].Type) {
 
-					if ((Obj[i].Type == 0))
+					if ((Obj[i].Type != 0))
 						m = { &Obj[i], &Obj[j] };
 					else m = { &Obj[j], &Obj[i] };
+					
 					ObjectInteractionMixed(&m);
 				}
 				else {
@@ -398,16 +425,23 @@ int main() {
 				}
 
 				// Resolve collisions if any occurred
-				if (Obj[i].Collided || Obj[j].Collided) {
+				if (Obj[i].Collided && Obj[j].Collided) {
+					std::cout << "Before Collision Resolution:" << std::endl;
+					std::cout << "Circle Position: (" << Obj[i].Transform.Position.x << ", " << Obj[i].Transform.Position.y << ")" << std::endl;
+					std::cout << "Rectangle Position: (" << Obj[j].Transform.Position.x << ", " << Obj[j].Transform.Position.y << ")" << std::endl;
+					Obj[i].RigidBody.EndPoint = Vector2{ -1, -1 };
+					Obj[j].RigidBody.EndPoint = Vector2{ -1, -1 };
 					ResolveCollision(&m);
+
+					std::cout << "After Collision Resolution:" << std::endl;
+					std::cout << "Circle Position: (" << Obj[i].Transform.Position.x << ", " << Obj[i].Transform.Position.y << ")" << std::endl;
+					std::cout << "Rectangle Position: (" << Obj[j].Transform.Position.x << ", " << Obj[j].Transform.Position.y << ")" << std::endl;
+				std::cout << "-----------------------------------------------------------------------------------------------------------------";
+
 				}
 			}
 
-			// Handle post-collision or movement logic
-			if (Obj[i].Collided) {
-				Obj[i].RigidBody.EndPoint = Vector2{ -1, -1 };
-			}
-			else if (Obj[i].RigidBody.EndPoint.x != -1 && Obj[i].RigidBody.EndPoint.y != -1) {
+			 if (Obj[i].RigidBody.EndPoint.x != -1 && Obj[i].RigidBody.EndPoint.y != -1) {
 				float distanceToEndPoint = std::sqrt(
 					std::pow(Obj[i].RigidBody.EndPoint.x - Obj[i].Transform.Position.x, 2) +
 					std::pow(Obj[i].RigidBody.EndPoint.y - Obj[i].Transform.Position.y, 2)
@@ -448,12 +482,22 @@ int main() {
 			}
 
 			// Draw velocity vector
-			Vector2 velocityEndPoint = Vector2{
+			
+			if (Obj[counter].Type == 0) {
+				Vector2 velocityEndPoint = Vector2{
 				Obj[counter].Transform.Position.x + Obj[counter].RigidBody.Velocity.x * VECTOR_LENGHT,
 				Obj[counter].Transform.Position.y + Obj[counter].RigidBody.Velocity.y * VECTOR_LENGHT
-			};
-
-			DrawLineEx(Obj[counter].Transform.Position, velocityEndPoint, LINE_THICKNESS, BLUE);
+				};
+				DrawLineEx(Obj[counter].Transform.Position, velocityEndPoint, LINE_THICKNESS, BLUE);
+			}
+			else
+			{
+				Vector2 velocityEndPoint = Vector2{
+				(Obj[counter].AABB.max.x + Obj[counter].AABB.min.x) / 2 + Obj[counter].RigidBody.Velocity.x * VECTOR_LENGHT,
+				(Obj[counter].AABB.max.y + Obj[counter].AABB.min.y) / 2 + Obj[counter].RigidBody.Velocity.y * VECTOR_LENGHT
+				};
+				DrawLineEx(Vector2{ (Obj[counter].AABB.max.x + Obj[counter].AABB.min.x) / 2,(Obj[counter].AABB.max.y + Obj[counter].AABB.min.y) / 2} , velocityEndPoint, LINE_THICKNESS, BLUE);
+			}
 		}
 
 		// Draw Hitboxes
@@ -469,13 +513,12 @@ int main() {
 			}
 			if (varObj.RigidBody.EndPoint.x != -1) {
 				DrawCircleV(varObj.RigidBody.EndPoint, GIZMOS_SIZE, YELLOW);
-				DrawLineV(varObj.Transform.Position, varObj.RigidBody.EndPoint, YELLOW);
+				DrawLineV(Vector2{ (varObj.AABB.max.x + varObj.AABB.min.x) / 2,(varObj.AABB.max.y + varObj.AABB.min.y) / 2 }, varObj.RigidBody.EndPoint, YELLOW);
 			}
 		}
 
 		EndDrawing();
 	}
-
 	CloseWindow();
 	return 0;
 }
