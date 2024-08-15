@@ -4,9 +4,9 @@
 #include <raylib.h>
 
 // Constants
-const bool DEBUG_MODE = 0;
-const int SCREEN_WIDTH = 800;
-const int SCREEN_HEIGHT = 600;
+const bool DEBUG_MODE = 1;
+const int SCREEN_WIDTH = 900;
+const int SCREEN_HEIGHT = 900;
 
 const int FPS_LIMIT = 60;
 const int VECTOR_LENGHT = 60;
@@ -156,56 +156,54 @@ void ObjectInteractionCircles(Manifold* M) {
 
 	A->Collided = B->Collided = true;
 }
-void ObjectInteractionMixed(Manifold* M)
-{
-	PhysicsObject* A = M->A;
-	PhysicsObject* B = M->B;
-	Vector2 n = Vector2{ B->Transform.Position.x - A->Transform.Position.x, B->Transform.Position.y - A->Transform.Position.y };
-	Vector2 closestPoint = n;
+void ObjectInteractionMixed(Manifold* M) {
+	PhysicsObject* A = M->A; // Circle
+	PhysicsObject* B = M->B; // Rectangle
 
-	float x_extent = (A->AABB.max.x - A->AABB.min.x) / 2;
-	float y_extent = (A->AABB.max.y - A->AABB.min.y) / 2;
+	// Vector from the circle's center to the rectangle's center
+	Vector2 n = Vector2{ A->Transform.Position.x - B->Transform.Position.x, A->Transform.Position.y - B->Transform.Position.y };
 
-	closestPoint.x = clamp(-x_extent, x_extent, closestPoint.x);
-	closestPoint.y = clamp(-y_extent, y_extent, closestPoint.y);
+	// Clamp point to the rectangle's bounds
+	Vector2 closestPoint = {
+		clamp(A->Transform.Position.x, B->AABB.min.x, B->AABB.max.x),
+		clamp(A->Transform.Position.y, B->AABB.min.y, B->AABB.max.y)
+	};
 
-	bool inside = (n.x == closestPoint.x && n.y == closestPoint.y);
+	// Calculate the vector from the circle's center to the closest point on the rectangle
+	Vector2 closestPointToCircle = Vector2{
+		closestPoint.x - A->Transform.Position.x,
+		closestPoint.y - A->Transform.Position.y
+	};
 
-	if (inside)
-	{
-		if (std::abs(n.x) > std::abs(n.y))
-		{
-			closestPoint.x = (closestPoint.x > 0) ? x_extent : -x_extent;
-		}
-		else {
-			closestPoint.y = (closestPoint.y > 0) ? y_extent : -y_extent;
-		}
-	}
+	// Check for collision
+	float distanceSquared = closestPointToCircle.x * closestPointToCircle.x + closestPointToCircle.y * closestPointToCircle.y;
+	float radiusSquared = A->Transform.Size.x * A->Transform.Size.x;
 
-	Vector2 normal = Vector2{ n.x - closestPoint.x, n.y - closestPoint.y };
-	float d = normal.x * normal.x + normal.y * normal.y;
-	float r = B->Transform.Size.x;
-
-	if (d > r * r && !inside) {
+	if (distanceSquared > radiusSquared) {
 		A->Collided = B->Collided = false;
 		return;
 	}
 
-	d = std::sqrt(d);
-	normal = normalize(normal);
+	// Collision detected
+	A->Collided = B->Collided = true;
 
-	if (inside)
-	{
-		M->normal = normalize(Vector2{ -n.x, -n.y });
-		M->penetration = r - d;
+	// Calculate the collision normal and penetration depth
+	float distance = sqrt(distanceSquared);
+	if (distance != 0) {
+		M->normal = Vector2{ closestPointToCircle.x / distance, closestPointToCircle.y / distance };
+		M->penetration = A->Transform.Size.x - distance;
 	}
 	else {
-		M->normal = normal;
-		M->penetration = r - d;
+		M->normal = Vector2{ 1, 0 }; // Default normal
+		M->penetration = A->Transform.Size.x; // Max penetration
 	}
-
-	A->Collided = B->Collided = true;
 }
+
+
+
+
+
+
 
 
 void CalculateVelocity(PhysicsObject& ObjA) {
@@ -237,16 +235,11 @@ void PositionalCorrection(Manifold* M)
 void ResolveCollision(Manifold* M) {
 	PhysicsObject* ObjA = M->A;
 	PhysicsObject* ObjB = M->B;
+
 	Vector2 relativeVelocity = Vector2{ ObjB->RigidBody.Velocity.x - ObjA->RigidBody.Velocity.x,
 									   ObjB->RigidBody.Velocity.y - ObjA->RigidBody.Velocity.y };
 
-	float x = ObjB->Transform.Position.x - ObjA->Transform.Position.x;
-	float y = ObjB->Transform.Position.y - ObjA->Transform.Position.y;
-	float length = std::sqrt(x * x + y * y);
-
-	Vector2 normalVector = M->normal;
-
-	float velocityAlongNormal = relativeVelocity.x * normalVector.x + relativeVelocity.y * normalVector.y;
+	float velocityAlongNormal = relativeVelocity.x * M->normal.x + relativeVelocity.y * M->normal.y;
 
 	if (velocityAlongNormal > 0) return;
 
@@ -254,16 +247,21 @@ void ResolveCollision(Manifold* M) {
 	float j = -(1 + e) * velocityAlongNormal;
 	j /= ObjA->RigidBody.InverseMass + ObjB->RigidBody.InverseMass;
 
-	Vector2 impulse = Vector2{ j * normalVector.x, j * normalVector.y };
+	Vector2 impulse = Vector2{ j * M->normal.x, j * M->normal.y };
 
-	ObjA->RigidBody.Velocity = Vector2{ ObjA->RigidBody.Velocity.x - (impulse.x * ObjA->RigidBody.InverseMass),
-									  ObjA->RigidBody.Velocity.y - (impulse.y * ObjA->RigidBody.InverseMass) };
+	ObjA->RigidBody.Velocity = Vector2{
+		ObjA->RigidBody.Velocity.x - impulse.x * ObjA->RigidBody.InverseMass,
+		ObjA->RigidBody.Velocity.y - impulse.y * ObjA->RigidBody.InverseMass
+	};
 
-	ObjB->RigidBody.Velocity = Vector2{ ObjB->RigidBody.Velocity.x + (impulse.x * ObjB->RigidBody.InverseMass),
-									  ObjB->RigidBody.Velocity.y + (impulse.y * ObjB->RigidBody.InverseMass) };
+	ObjB->RigidBody.Velocity = Vector2{
+		ObjB->RigidBody.Velocity.x + impulse.x * ObjB->RigidBody.InverseMass,
+		ObjB->RigidBody.Velocity.y + impulse.y * ObjB->RigidBody.InverseMass
+	};
+
+	// Positional correction
 	PositionalCorrection(M);
 }
-
 void CreateGameObject(int& OBJECT_NUMBER, PhysicsObject ObjList[], Vector2 Position = Vector2{ 0, 0 },
 	Vector3 Rotation = Vector3{ 0, 0, 0 }, Vector2 Size = Vector2{ 1, 1 }, unsigned short Type = 0,
 	float ObjectSpeed = 1, Vector2 EndPoint = Vector2{ -1, -1 }, float Mass = 1, float Restitution = 0.5f) {
@@ -289,9 +287,6 @@ int main() {
 
 	// Objects
 	PhysicsObject Obj[10];
-	//CreateGameObject(OBJECT_NUMBER, Obj, Vector2{ 50, 50 }, Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 2, Vector2{ 500, 500 }, 1, 0.5f);
-	//CreateGameObject(OBJECT_NUMBER, Obj, Vector2{ 100, 180 }, Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 2, Vector2{ 400, 400 }, 1, 0.5f);
-
 	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Raylib Program");
 	SetTargetFPS(FPS_LIMIT);
 	// Debugging
@@ -341,15 +336,15 @@ int main() {
 	EndDrawing();
 	for (int i = 0; i < EndPointNumber; i++)
 	{
-		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 3, EndPoints[i], 1, 0.5f);
+		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 100, 25 }, 1, 3, EndPoints[i], 1, 0.5f);
 	}
 	for (int i = EndPointNumber; i < StartPointNumber; i++)
 	{
-		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 3, StartingPoints[i], 1, 0.5f);
+		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 1, 3, StartingPoints[i], 1, 0.5f);
 	}
 	for (int i = 0; i < BasicPointNumber; i++)
 	{
-		CreateGameObject(OBJECT_NUMBER, Obj, BasicPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 50, 50 }, 1, 3, BasicPoints[i], 0, 0.5f);
+		CreateGameObject(OBJECT_NUMBER, Obj, BasicPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 50, 50 }, 0, 3, BasicPoints[i], 1, 0.5f);
 	}
 	// Raylib Loop
 	while (!WindowShouldClose()) {
@@ -392,7 +387,7 @@ int main() {
 				}
 				else if (Obj[i].Type != Obj[j].Type) {
 
-					if ((Obj[i].Type != 0))
+					if ((Obj[i].Type == 0))
 						m = { &Obj[i], &Obj[j] };
 					else m = { &Obj[j], &Obj[i] };
 					ObjectInteractionMixed(&m);
