@@ -294,7 +294,6 @@ void DrawScreenLogic(PhysicsObject2D Obj[], int OBJECT_NUMBER)
 			DrawLineV(varObj.Transform.Position, varObj.RigidBody.EndPoint, YELLOW);
 		}
 	}
-
 	EndDrawing();
 }
 int main() {
