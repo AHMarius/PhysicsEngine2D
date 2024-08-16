@@ -14,7 +14,7 @@ const float LINE_THICKNESS = 2.0f;
 const float GIZMOS_SIZE = 2.0f;
 
 // Structs
-struct GameObject {
+struct PhysicsObject2D {
 	unsigned short Type; // 0-circle, 1-rectangle
 	bool Collided;
 	struct {
@@ -73,7 +73,7 @@ struct GameObject {
 	}
 };
 
-void ObjectInteraction(GameObject& ObjA, GameObject& ObjB) {
+void ObjectInteraction(PhysicsObject2D& ObjA, PhysicsObject2D& ObjB) {
 	bool interaction = false;
 	if (!((ObjA.AABB.max.x < ObjB.AABB.min.x || ObjA.AABB.min.x > ObjB.AABB.max.x) ||
 		(ObjA.AABB.max.y < ObjB.AABB.min.y || ObjA.AABB.min.y > ObjB.AABB.max.y))) {
@@ -82,7 +82,7 @@ void ObjectInteraction(GameObject& ObjA, GameObject& ObjB) {
 	ObjA.Collided = ObjB.Collided = interaction;
 }
 
-void ObjectInteractionCircles(GameObject& ObjA, GameObject& ObjB) {
+void ObjectInteractionCircles(PhysicsObject2D& ObjA, PhysicsObject2D& ObjB) {
 	float R = ObjA.Transform.Size.x + ObjB.Transform.Size.x;
 	bool interaction = pow(R, 2) >= pow(ObjA.Transform.Position.x - ObjB.Transform.Position.x, 2) +
 		pow(ObjA.Transform.Position.y - ObjB.Transform.Position.y, 2);
@@ -90,7 +90,7 @@ void ObjectInteractionCircles(GameObject& ObjA, GameObject& ObjB) {
 }
 
 
-void ResolveCollision(GameObject& ObjA, GameObject& ObjB) {
+void ResolveCollision(PhysicsObject2D& ObjA, PhysicsObject2D& ObjB) {
 	Vector2 relativeVelocity = Vector2{ ObjB.RigidBody.Velocity.x - ObjA.RigidBody.Velocity.x,
 									   ObjB.RigidBody.Velocity.y - ObjA.RigidBody.Velocity.y };
 
@@ -118,7 +118,7 @@ void ResolveCollision(GameObject& ObjA, GameObject& ObjB) {
 									  ObjB.RigidBody.Velocity.y + (impulse.y * ObjB.RigidBody.InvMass) };
 }
 
-void CreateGameObject(int& OBJECT_NUMBER, GameObject ObjList[], Vector2 Position = Vector2{ 0, 0 },
+void CreateGameObject(int& OBJECT_NUMBER, PhysicsObject2D ObjList[], Vector2 Position = Vector2{ 0, 0 },
 	Vector3 Rotation = Vector3{ 0, 0, 0 }, Vector2 Size = Vector2{ 1, 1 }, unsigned short Type = 0,
 	float ObjectSpeed = 1, Vector2 EndPoint = Vector2{ -1, -1 }, float Mass = 1, float Restitution = 0.5f) {
 	ObjList[OBJECT_NUMBER].Transform.Position = Position;
@@ -137,7 +137,7 @@ void CreateGameObject(int& OBJECT_NUMBER, GameObject ObjList[], Vector2 Position
 
 	OBJECT_NUMBER++;
 }
-void SetupLogic(int& OBJECT_NUMBER, GameObject Obj[10])
+void SetupLogic(int& OBJECT_NUMBER, PhysicsObject2D Obj[10])
 {
 	Vector2 StartingPoints[100], EndPoints[100], BasicPoints[100];
 	int StartPointNumber = 0, EndPointNumber = 0, BasicPointNumber = 0;
@@ -184,20 +184,20 @@ void SetupLogic(int& OBJECT_NUMBER, GameObject Obj[10])
 	EndDrawing();
 	for (int i = 0; i < EndPointNumber; i++)
 	{
-		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 50 }, 1, 3, EndPoints[i], 1, 0.5f);
+		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 50 }, SPAWN_OBJECT_VARIABLE_TYPE, 3, EndPoints[i], 1, 0.5f);
 	}
 	for (int i = EndPointNumber; i < StartPointNumber; i++)
 	{
-		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 50 }, 1, 3, StartingPoints[i], 1, 0.5f);
+		CreateGameObject(OBJECT_NUMBER, Obj, StartingPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 50 }, SPAWN_OBJECT_VARIABLE_TYPE, 3, StartingPoints[i], 1, 0.5f);
 	}
 	for (int i = 0; i < BasicPointNumber; i++)
 	{
-		CreateGameObject(OBJECT_NUMBER, Obj, BasicPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, 0, 3, BasicPoints[i], 1, 0.5f);
+		CreateGameObject(OBJECT_NUMBER, Obj, BasicPoints[i], Vector3{ 0, 0, 0 }, Vector2{ 25, 25 }, SPAWN_OBJECT_STATIC_TYPE, 3, BasicPoints[i], 1, 0.5f);
 	}
 	CloseWindow();
 }
 
-void CollisionLogic(GameObject Obj[], int OBJECT_NUMBER)
+void CollisionLogic(PhysicsObject2D Obj[], int OBJECT_NUMBER)
 {
 	for (int counter = 0; counter < OBJECT_NUMBER; counter++) {
 		Obj[counter].Collided = false;
@@ -245,7 +245,7 @@ void CollisionLogic(GameObject Obj[], int OBJECT_NUMBER)
 		Obj[i].MoveTowards();
 	}
 }
-void PositionUpdate(GameObject Obj[], int OBJECT_NUMBER) {
+void PositionUpdate(PhysicsObject2D Obj[], int OBJECT_NUMBER) {
 
 	// Position Change Loop
 	for (int counter = 0; counter < OBJECT_NUMBER; counter++) {
@@ -255,7 +255,7 @@ void PositionUpdate(GameObject Obj[], int OBJECT_NUMBER) {
 		};
 	}
 }
-void DrawScreenLogic(GameObject Obj[], int OBJECT_NUMBER)
+void DrawScreenLogic(PhysicsObject2D Obj[], int OBJECT_NUMBER)
 {
 	// Draw
 	BeginDrawing();
@@ -280,7 +280,7 @@ void DrawScreenLogic(GameObject Obj[], int OBJECT_NUMBER)
 
 	// Draw Hitboxes
 	for (int counter = 0; counter < OBJECT_NUMBER && DEBUG_MODE; counter++) {
-		GameObject varObj = Obj[counter];
+		PhysicsObject2D varObj = Obj[counter];
 		if (varObj.Type == 0) {
 			DrawCircleLinesV(varObj.Transform.Position, varObj.Transform.Size.x, RED);
 			DrawLine(varObj.Transform.Position.x - varObj.Transform.Size.x, varObj.Transform.Position.y, varObj.Transform.Position.x + varObj.Transform.Size.x, varObj.Transform.Position.y, RED);
@@ -300,7 +300,7 @@ void DrawScreenLogic(GameObject Obj[], int OBJECT_NUMBER)
 int main() {
 	// Declarations
 	int OBJECT_NUMBER = 0;
-	GameObject Obj[100];
+	PhysicsObject2D Obj[100];
 
 
 	SetupLogic(OBJECT_NUMBER, Obj);
